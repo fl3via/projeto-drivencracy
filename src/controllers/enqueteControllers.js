@@ -1,6 +1,7 @@
 import { db } from '../database/conexaomongo.js'
 import dayjs from 'dayjs'
-import { pesquisaSchema } from '../schemas/pesquisaSchemas.js'
+import { pesquisaSchema, votoSchema } from '../schemas/pesquisaSchemas.js'
+import { ObjectId } from 'mongodb'
 
 // Função auxiliar para formatar a data de expiração
 export async function formatExpireDate(expireAt) {
@@ -41,3 +42,37 @@ export async function enquete(req, res) {
   }
 }
 
+// Criar uma nova opção de voto para uma enquete
+export async function criarOpcao(req, res) {
+  const { title, pollId } = req.body
+
+  const validation = votoSchema.validate(req.body, { abortEarly: false })
+
+  if (validation.error) {
+    const errors = validation.error.details.map((detail) => detail.message)
+    return res.status(422).send(errors)
+  }
+
+  try {
+    // Verificar se a enquete  existe no banco de dados
+    const enquete = await db.collection('enquete').findOne({ _id: new ObjectId(pollId) })
+    if (!enquete) return res.sendStatus(404)
+
+    // Verificar se já existe uma opção de voto com o mesmo título no banco de dados
+    const existingOption = await db.collection('opcaoDeVoto').findOne({ title })
+    if (existingOption) {
+      return res.sendStatus(409)
+    }
+
+    // Verificar se a enquete não expirou
+    if (dayjs(enquete.expireAt).isBefore(dayjs())) {
+      return res.sendStatus(403)
+    }
+
+    // Inserir a opção de voto no banco de dados
+    await db.collection('opcaoDeVoto').insertOne({ title, pollId })
+    res.sendStatus(201)
+  } catch (error) {
+    res.status(500).send(error.message)
+  }
+}
