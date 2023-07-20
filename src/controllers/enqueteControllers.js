@@ -76,3 +76,22 @@ export async function criarOpcao(req, res) {
     res.status(500).send(error.message)
   }
 }
+
+// Obter todas as opções de voto para uma enquete
+export async function opcaoDeVoto(req, res) {
+  const { id } = req.params
+
+  try {
+    const enquete = await db.collection('enquete').findOne({ _id: new ObjectId(id) })
+    enquete ? res.send(enquete) : res.sendStatus(404)
+  
+    // Buscar todas as opções de voto associadas à enquete no banco de dados
+    const opcoesDeVoto = await db.collection('opcaoDeVoto').find({ pollId: id }).toArray()
+    res.send(opcoesDeVoto)
+  } catch (error) {
+    res.status(500).send(error.message)
+  }
+}
+
+
+
