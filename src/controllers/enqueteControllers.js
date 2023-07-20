@@ -93,5 +93,32 @@ export async function opcaoDeVoto(req, res) {
   }
 }
 
+// Criar um novo voto 
+export async function criarVotos(req, res) {
+  const { id } = req.params
+
+  try {
+    const opcaoDeVoto = await db.collection('opcaoDeVoto').findOne({ _id: new ObjectId(id) })
+    if (!opcaoDeVoto) return res.sendStatus(404)
+
+    // Verificar se a enquete associada à opção de voto não expirou
+    const enquete = await db.collection('enquete').findOne({ _id: new ObjectId(opcaoDeVoto.pollId) })
+    if (dayjs(enquete.expireAt).isBefore(dayjs())) {
+      return res.sendStatus(403) // Enquete expirou, retornar 403 Forbidden
+    } else {
+      // Inserir o voto no banco de dados
+      await db.collection('voto').insertOne({
+        createdAt: dayjs().format('YYYY-MM-DD HH:mm'),
+        choiceId: id,
+      });
+      return res.sendStatus(201); // Retornar 201 Created
+    }
+
+  } catch (error) {
+    res.status(500).send(error.message)
+  }
+}
+
+
 
 
