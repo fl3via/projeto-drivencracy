@@ -110,12 +110,78 @@ export async function criarVotos(req, res) {
       await db.collection('voto').insertOne({
         createdAt: dayjs().format('YYYY-MM-DD HH:mm'),
         choiceId: id,
-      });
-      return res.sendStatus(201); // Retornar 201 Created
+      })
+      return res.sendStatus(201)
     }
 
   } catch (error) {
     res.status(500).send(error.message)
+  }
+}
+
+
+export async function resultados(req, res) {
+  const { id } = req.params
+
+  try {
+    // Consulta  para obter o resultado da enquete
+    const result = await db.collection('opcaoDeVoto').aggregate([
+      {
+        $match: { pollId: new ObjectId(id) }
+      },
+      {
+        $lookup: {
+          from: 'voto',
+          localField: '_id',
+          foreignField: 'choiceId',
+          as: 'votes'
+        }
+      },
+      {
+        $project: {
+          _id: 0,
+          title: 1,
+          votes: { $size: '$votes' }
+        }
+      },
+      {
+        $sort: { votes: -1 }
+      },
+      {
+        $limit: 1
+      },
+      {
+        $lookup: {
+          from: 'enquete',
+          localField: 'pollId',
+          foreignField: '_id',
+          as: 'enquete'
+        }
+      },
+      {
+        $unwind: '$enquete'
+      },
+      {
+        $project: {
+          _id: '$enquete._id',
+          title: '$enquete.title',
+          expireAt: '$enquete.expireAt',
+          option: {
+            title: '$title',
+            votes: '$votes'
+          }
+        }
+      }
+    ]).toArray()
+
+    // Verificar se a enquete foi encontrada
+    if (result.length === 0) {
+      return res.sendStatus(404)
+    }
+
+    res.status(201).send(result[0])
+  } catch (err) {
+    res.status(500).send(err.message)
   }
 }
 
