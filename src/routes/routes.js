@@ -1,5 +1,5 @@
 import { Router} from 'express'
-import { criarEnquete, enquete, criarOpcao, opcaoDeVoto, criarVotos } from '../controllers/enqueteControllers.js'
+import { criarEnquete, enquete, criarOpcao, opcaoDeVoto, criarVotos, resultados } from '../controllers/enqueteControllers.js'
 
 
 
@@ -10,7 +10,7 @@ const rotasRouter = Router()
     rotasRouter.post('/choice', criarOpcao)
     rotasRouter.get('/poll/:id/choice', opcaoDeVoto)
     rotasRouter.post('/choice/:id/vote', criarVotos)
-   // rotasRouter.get('/poll/:id/result', resultados)
+    rotasRouter.get('/poll/:id/result', resultados)
 
 
     export default rotasRouter

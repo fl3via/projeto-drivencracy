@@ -34,7 +34,7 @@ export async function criarEnquete(req, res) {
 // Obter todas as enquetes
 export async function enquete(req, res) {
   try {
- 
+
     const enquetes = await db.collection('enquete').find().toArray()
     res.send(enquetes)
   } catch (error) {
@@ -72,8 +72,8 @@ export async function criarOpcao(req, res) {
     // Inserir a opção de voto no banco de dados
     await db.collection('opcaoDeVoto').insertOne({ title, pollId })
     res.sendStatus(201)
-  } catch (error) {
-    res.status(500).send(error.message)
+  } catch (err) {
+    res.status(500).send(err.message)
   }
 }
 
@@ -82,16 +82,21 @@ export async function opcaoDeVoto(req, res) {
   const { id } = req.params
 
   try {
-    const enquete = await db.collection('enquete').findOne({ _id: new ObjectId(id) })
-    enquete ? res.send(enquete) : res.sendStatus(404)
-  
-    // Buscar todas as opções de voto associadas à enquete no banco de dados
-    const opcoesDeVoto = await db.collection('opcaoDeVoto').find({ pollId: id }).toArray()
-    res.send(opcoesDeVoto)
-  } catch (error) {
-    res.status(500).send(error.message)
+    const enquete = await db
+      .collection('enquete')
+      .findOne({ _id: new ObjectId(id) })
+    if (!enquete) return res.sendStatus(404)
+
+    const opcaoExist = await db.collection('opcaoDeVoto').find({ pollId: id }).toArray()
+    res.send(opcaoExist)
+
+    await db.collection('opcaoDeVoto').insertOne({ title, pollId })
+    res.sendStatus(201)
+  } catch (err) {
+    res.status(500).send(err.message)
   }
 }
+
 
 // Criar um novo voto 
 export async function criarVotos(req, res) {
@@ -119,69 +124,50 @@ export async function criarVotos(req, res) {
   }
 }
 
-
+// Função que pega os resultados 
 export async function resultados(req, res) {
   const { id } = req.params
 
   try {
-    // Consulta  para obter o resultado da enquete
-    const result = await db.collection('opcaoDeVoto').aggregate([
-      {
-        $match: { pollId: new ObjectId(id) }
-      },
-      {
-        $lookup: {
-          from: 'voto',
-          localField: '_id',
-          foreignField: 'choiceId',
-          as: 'votes'
-        }
-      },
-      {
-        $project: {
-          _id: 0,
-          title: 1,
-          votes: { $size: '$votes' }
-        }
-      },
-      {
-        $sort: { votes: -1 }
-      },
-      {
-        $limit: 1
-      },
-      {
-        $lookup: {
-          from: 'enquete',
-          localField: 'pollId',
-          foreignField: '_id',
-          as: 'enquete'
-        }
-      },
-      {
-        $unwind: '$enquete'
-      },
-      {
-        $project: {
-          _id: '$enquete._id',
-          title: '$enquete.title',
-          expireAt: '$enquete.expireAt',
-          option: {
-            title: '$title',
-            votes: '$votes'
-          }
-        }
+      const enquete = await db
+          .collection('enquete')
+          .findOne({ _id: new ObjectId(id) })
+      if (!enquete) return res.sendStatus(404)
+
+      const options = await db
+          .collection('opcaoDeVoto')
+          .find({ pollId: id })
+          .toArray()
+
+      let results = []
+
+      let optionIndex = 0
+      while (optionIndex < options.length) {
+          const option = options[optionIndex];
+          const votos = await db.collection('voto').find({ choiceId: option._id.toString() }).toArray()
+          let result = { title: option.title, votes: votos.length }
+          results.push(result)
+          optionIndex++
       }
-    ]).toArray()
 
-    // Verificar se a enquete foi encontrada
-    if (result.length === 0) {
-      return res.sendStatus(404)
-    }
+      // Sorteie os resultados 
+      results = results.sort((a, b) => b.votes - a.votes)
 
-    res.status(201).send(result[0])
+      
+      const optionWithMostVotes = results[0]
+
+      const retorno = {
+          _id: enquete._id,
+          title: enquete.title,
+          expireAt: {
+              title: optionWithMostVotes.title,
+              votes: optionWithMostVotes.votes
+          }
+      }
+
+      res.status(201).send(retorno)
   } catch (err) {
-    res.status(500).send(err.message)
+      res.status(500).send(err.message)
   }
 }
 
